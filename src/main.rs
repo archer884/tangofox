@@ -1,3 +1,4 @@
+mod addr;
 mod timeout;
 
 use std::{env, io, path::PathBuf, time::Duration};
@@ -6,7 +7,7 @@ use clap::Parser;
 use libunftp::options::Shutdown;
 use unftp_sbe_fs::ServerExt;
 
-use crate::timeout::Timeout;
+use crate::{addr::Address, timeout::Timeout};
 
 type Server = libunftp::Server<unftp_sbe_fs::Filesystem, libunftp::auth::DefaultUser>;
 
@@ -32,6 +33,10 @@ impl Args {
             }),
         }
     }
+
+    fn address(&self) -> Address {
+        Address::new(self.port)
+    }
 }
 
 #[tokio::main]
@@ -44,10 +49,7 @@ pub async fn main() {
 }
 
 async fn run(args: Args) -> io::Result<()> {
-    let root = args.root()?;
-    let addr = format!("0.0.0.0:{}", args.port);
-
-    let mut server = libunftp::Server::with_fs(root)
+    let mut server = libunftp::Server::with_fs(args.root()?)
         .greeting("Leave your files at the door and get the hell out of here.")
         .passive_ports(50000..=65535);
 
@@ -56,12 +58,12 @@ async fn run(args: Args) -> io::Result<()> {
     }
 
     println!("Ftp running on port {}...", args.port);
-    listen(server.build().unwrap(), &addr).await?;
+    listen(server.build().unwrap(), args.address()).await?;
 
     Ok(())
 }
 
-async fn listen(server: Server, addr: &str) -> io::Result<()> {
+async fn listen(server: Server, addr: Address) -> io::Result<()> {
     server.listen(addr).await.map_err(io::Error::other)
 }
 
